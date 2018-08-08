@@ -186,6 +186,7 @@ public:
   void virtual NotifyLoading(int iStep, const char * p_pszMsg) = 0;
 };
 
+
 template<typename CDataItem>
 class CDataCache
 { 
