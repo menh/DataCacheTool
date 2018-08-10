@@ -3,7 +3,10 @@
 #include <vector>
 #include <list>
 using namespace std;
-
+struct ST_DATA{
+	string key;
+	int num;
+};
 /*
 Data Index Change Event, not support delete for avoid Halloween question
 */
@@ -57,7 +60,11 @@ class CDataCache
     		Free();
   		}
 	    
-  		int Load(void);
+  		int Load(CDataItem data){
+  		  m_clItems.push_back(data);
+		  m_iItemNum=m_clItems.size();	
+		}
+		
   		int Append(CDataItem &p_refclDataItem)
   		{ 
     		int iRetCode = -1;
@@ -93,15 +100,29 @@ class CDataCache
      			m_lstIndexEvent.remove(p_pclIndexEvent);
     		} 
   		}
+  		
+  		void Update(int p_iIndex, CDataItem & p_refclDataItem)
+  		{ 
+    		bool bCanUpdate = true;
+    		typename list<CIndexEvent<CDataItem>* > ::iterator it;
+    		for(it = m_lstIndexEvent.begin(); it != m_lstIndexEvent.end(); it++)
+    		{ 
+      			CIndexEvent<CDataItem>* pIndexEvent = *it;
+      			bCanUpdate = pIndexEvent->CanUpdate(m_clItems[p_iIndex], p_refclDataItem);
+    		} 
+    		m_clItems[p_iIndex] = p_refclDataItem;  
+  		}
+  		
+  		const CDataItem & operator[](int p_iIndex)
+  		{ 
+    		return m_clItems[p_iIndex];
+  		}
+  
 	protected:
 		vector<CDataItem> m_clItems;
 		list<CIndexEvent<CDataItem>* > m_lstIndexEvent;//多索引支持 
 		int m_iItemNum;
 };
-
-
-
-
 
 
 /*
@@ -196,8 +217,14 @@ class CDataCacheUniqueIndex
     		string strIndexStr = SearchKey(p_refclDataItem);
     		m_mapUniqueIndexes[strIndexStr] = iDataItemPos; 
   		}
+  		  
+		void SetIndexName(const char * p_szIndexName)
+  		{  
+    		m_szIndexName = p_szIndexName;
+  		}
+  		string SearchKey(const CDataIndex & p_refclDataIndex);
+  		string SearchKey(const CDataItem & p_refclDataItem);
 	private:
-		string SearchKey(const CDataIndex & p_refclDataIndex);
 		/*Inner class*/
 		class CUniqueIndexEvent: public CIndexEvent<CDataItem>
 		{ 
@@ -215,7 +242,20 @@ class CDataCacheUniqueIndex
      	 			m_pclIndex->UpdateIndex(newValue, iPos);
       				return 0;
     			}
-    			
+    			virtual bool CanUpdate(CDataItem &oldValue, CDataItem &newValue)
+                { 
+      				string szOldKey = m_pclIndex->SearchKey(oldValue);
+      				string szNewKey = m_pclIndex->SearchKey(newValue);
+      				return (szOldKey == szNewKey);
+    			} 
+    			virtual bool CanAdd()
+				{
+					return true;
+				}
+  				virtual int Clear()
+				{
+					return -1;
+				} 
   			private:
     			CDataCacheUniqueIndex<CDataIndex, CDataItem, CQueryCondtion> * m_pclIndex;
   		};
@@ -225,8 +265,30 @@ class CDataCacheUniqueIndex
   		CUniqueIndexEvent m_clUniqueIndexEvent;
   		string m_szIndexName;
 };
+
+template<>
+inline string CDataCacheUniqueIndex<string,ST_DATA>::SearchKey(const string & p_refclDataIndex)
+{
+  return p_refclDataIndex;
+}
+
+template<>
+inline string CDataCacheUniqueIndex<string,ST_DATA>::SearchKey(const ST_DATA & p_refclDataItem)
+{ 
+  return p_refclDataItem.key;
+}
+
 int main()
 {
+	CDataCache<ST_DATA>clDataCache;
+	CDataCacheUniqueIndex<string,ST_DATA> clDataCacheUniqueIndex(clDataCache);
+	ST_DATA data;
+	data.num=1;
+	data.key="data";
+	clDataCache.Append(data);
+	clDataCache.Append(data);
+	cout<<clDataCacheUniqueIndex["data"].num<<endl;
+	cout<<clDataCache[0].num<<endl;
 	return 0;
 }
 
