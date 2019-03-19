@@ -1,6 +1,6 @@
 #if !defined __data_cache_h__
 #define __data_cache_h__
-
+ 
 #include <vector>
 /*
 Data Index Change Event, not support delete for avoid Halloween question
@@ -55,6 +55,6 @@ protected:
 	vector<CDataItem> m_clItems;
 	int m_iItemNum;
 };
-
+ 
 #endif
-
+ 
