@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <iostream>
+#include <list>
 using namespace std;
 /*
 索引事件接口类 
@@ -30,26 +31,19 @@ struct studentpk{
 	}
 };
 
-
-
 template <typename CDataItem>
 class CIndexEvent 
 { 
 	public:
-		virtual bool CanAdd() = 0;                                               /*是否允许增加*/
+		virtual bool CanAdd(CDataItem &p_refclDataItem) = 0;                                               /*是否允许增加*/
 		virtual int Add(CDataItem &newValue, int iPos) = 0;                      /*增加数据事件*/
   		virtual bool CanUpdate(CDataItem &oldValue, CDataItem &newValue) = 0;    /*是否允许更新*/
+  		virtual int Update(CDataItem &oldValue, CDataItem &newValue) = 0;    /*是否允许更新*/
 		virtual int Clear() = 0;                                                 /*数据清理事件*/
 };
 
 /**
- * 数据缓存类 
- *
- *
- *
- *
- *
- *
+ * 数据缓存类
  */ 
 template<typename CDataItem>
 class CDataCache
@@ -89,15 +83,83 @@ class CDataCache
 			}
     		return m_clItems[p_iIndex];
 		}
+		
+		int Append(CDataItem &p_refclDataItem)
+		{
+			int iRetCode = -1;
+			typename list<CIndexEvent<CDataItem>* > ::iterator it;
+			bool bCanAdd = true;
+			for(it = m_lstIndexEvent.begin(); it != m_lstIndexEvent.end(); ++it)
+			{
+				if((*it)->CanAdd(p_refclDataItem) == -1)
+				{
+					bCanAdd = false;
+					break;
+				}
+			}
+			if(bCanAdd)
+			{
+				m_clItems.push_back(p_refclDataItem);
+				
+				for(it = m_lstIndexEvent.begin(); it != m_lstIndexEvent.end(); ++it)
+				{
+					(*it)->Add(p_refclDataItem, m_iItemNum);
+				}
+				++m_iItemNum;
+			}	
+		}
+		
+		int Update(int p_iIndex, CDataItem & p_refclDataItem)
+		{
+			CDataItem oldValue = m_clItems[p_iIndex];
+			
+			int iRetCode = -1;
+			typename list<CIndexEvent<CDataItem>* > ::iterator it;
+			bool bCanAdd = true;
+			for(it = m_lstIndexEvent.begin(); it != m_lstIndexEvent.end(); ++it)
+			{
+				if((*it)->CanUpdate(oldValue, p_refclDataItem) == -1)
+				{
+					bCanAdd = false;
+					break;
+				}
+			}
+			if(bCanAdd)
+			{
+				for(it = m_lstIndexEvent.begin(); it != m_lstIndexEvent.end(); ++it)
+				{
+					(*it)->Update(oldValue,p_refclDataItem); 
+				}
+				m_clItems[p_iIndex] = p_refclDataItem;
+			}
+			return 0;
+		}
+		
+		void RegisterNotify(CIndexEvent<CDataItem> * p_pclIndexEvent)
+  		{ 
+      		m_lstIndexEvent.push_back(p_pclIndexEvent);
+  		}
+  		
+  		void RegisterNotify(CIndexEvent<CDataItem> * p_pclIndexEvent)
+  		{ 
+      		m_lstIndexEvent.push_back(p_pclIndexEvent);
+  		}
+  		  
+		void UnRegisterNotify(CIndexEvent<CDataItem> * p_pclIndexEvent)
+  		{
+      		m_lstIndexEvent.remove(p_pclIndexEvent);
+    	} 
+  }
 protected:
 	void Free()
 	{ 
 		m_clItems.clear();
 		m_iItemNum = 0;
 	}
-protected:
+private:
 	vector<CDataItem> m_clItems;
 	int m_iItemNum;
+	list<CIndexEvent<CDataItem>* > m_lstIndexEvent;
 };
 
 /*
@@ -111,21 +173,28 @@ class CDataCacheUniqueIndex
 		class CUniqueIndexEvent: public CIndexEvent<CDataItem>
 		{ 
 			public:
-				virtual bool CanAdd()
-				{ 
-					return true;
+				virtual bool CanAdd(CDataItem &p_refclDataItem)
+				{
+					return m_pclIndex->GetDataItemPos(p_refclDataItem) == -1 ? true : false;
 				} 
 				
 				virtual int Add(CDataItem &newValue, int iPos)
 				{ 
-					return 0;
+					return m_pclIndex->UpdateIndex(newValue, iPos);
 				}
     
 				virtual bool CanUpdate(CDataItem &oldValue, CDataItem &newValue)
 				{ 
-					return true;
+					return m_pclIndex->GetDataItemPos(newValue) == -1 || m_pclIndex->GetDataItemPos(oldValue) ==  m_pclIndex->GetDataItemPos(newValue) ? true : false;
 				} 
     
+    			virtual int Update(CDataItem &oldValue, CDataItem &newValue)
+    			{
+    				int iPos = m_pclIndex->GetDataItemPos(oldValue);
+    				
+    				return m_pclIndex->UpdateIndex(newValue, iPos);
+				}
+    			
 				virtual int Clear()
     			{
 					return -1;    
@@ -142,6 +211,8 @@ class CDataCacheUniqueIndex
 		CDataCacheUniqueIndex(CDataCache<CDataItem> &p_refclDataCache): m_refclDataCache(p_refclDataCache)
 		{
 			this->CreateIndex();
+			m_clUniqueIndexEvent.SetParent(this);
+			m_refclDataCache.RegisterNotify(&m_clUniqueIndexEvent);
 		}
   
 		~CDataCacheUniqueIndex()
@@ -178,15 +249,38 @@ class CDataCacheUniqueIndex
     		map<string, int>::iterator it;
     		it = m_clUniqueIndexes.find(strIndexStr);
     		if(it == m_clUniqueIndexes.end())
-    		{  
-    		} 
-    		iRetCode = it->second;
+    		{
+    		
+    		}
+    		else
+    		{
+    			iRetCode = it->second;
+			}
+    		
+    		return iRetCode;
+  		}
+  		
+  				//根据主键查询数据所在位置 
+		int GetDataItemPos(CDataItem &p_refclDataItem)
+  		{ 
+    		int iRetCode = -1;
+    		string strIndexStr = SearchKey(p_refclDataItem);
+    		map<string, int>::iterator it;
+    		it = m_clUniqueIndexes.find(strIndexStr);
+    		if(it == m_clUniqueIndexes.end())
+    		{
+			
+    		}
+    		else
+    		{
+    			iRetCode = it->second;
+			}
     		return iRetCode;
   		}
   		
   		
   		//根据索引获取数据 
-  		int GetDataItem(CDataItem &p_refclDataItem,const CDataIndex &p_refclDataIndex)
+  		int GetDataItem(CDataItem &p_refclDataItem, const CDataIndex &p_refclDataIndex)
   		{ 
     		int iRetCode;
     		string strIndexStr = SearchKey(p_refclDataIndex);
@@ -210,10 +304,17 @@ class CDataCacheUniqueIndex
 		string SearchKey(const CDataIndex & p_refclDataIndex){
   			return p_refclDataIndex.name;
 		}
-	
+		
+		int UpdateIndex(CDataItem & p_refclDataItem, int iDataItemPos)
+  		{
+    		string strIndexStr = SearchKey(p_refclDataItem);
+    		m_clUniqueIndexes[strIndexStr] = iDataItemPos;
+			return 0; 
+  		}
 	private:
 		CDataCache<CDataItem> & m_refclDataCache;  /*数据缓存变量*/ 
-		map<string, int> m_clUniqueIndexes; /*索引值和该项所在index*/ 
+		map<string, int> m_clUniqueIndexes; /*索引值和该项所在index*/
+		CUniqueIndexEvent m_clUniqueIndexEvent;
 };
 
 /* 
@@ -229,22 +330,29 @@ int main()
 	student student3("小3",3);
 	student student4("小4",4);
 	student student5("小5",5);
+	student student6("小6",6);
+	student student7("小7",7);
+	student student8("小8",8);
 	
 	data2.push_back(student1);
 	data2.push_back(student2);
 	data2.push_back(student3);
 	data2.push_back(student4);
-	data2.push_back(student5);
+//	data2.push_back(student5);
 	
 	data.Load(data2);
 	
 	CDataCacheUniqueIndex<student,studentpk> studentNameUniqueIndex(data);
 	
-	studentpk studentpk1("小2");
+	data.Append(student5);
+	data.Append(student6);
+	studentpk studentpk1("小8");
+	data.Update(2,student8);
 	cout<<studentNameUniqueIndex.GetDataItemPos(studentpk1)<<endl;
-	student student6;
+	
+	/*student student6;
 	studentNameUniqueIndex.GetDataItem(student6,studentpk1);
 	cout<<student6.name<< " " << student6.age<<endl; 
-	cout<<data[1].name<<endl;
+	cout<<data[1].name<<endl;*/
 	return 0;
 }

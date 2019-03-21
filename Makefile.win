@@ -4,8 +4,8 @@
 CPP      = g++.exe
 CC       = gcc.exe
 WINDRES  = windres.exe
-OBJ      = DATA_CACHE_CPP/cls/datacache.o main.o
-LINKOBJ  = DATA_CACHE_CPP/cls/datacache.o main.o
+OBJ      = DATA_CACHE_CPP/cls/datacache.o main.o ../../CPPTest/无锁编程.o
+LINKOBJ  = DATA_CACHE_CPP/cls/datacache.o main.o ../../CPPTest/无锁编程.o
 LIBS     = -L"D:/Dev-Cpp/MinGW64/lib" -L"D:/Dev-Cpp/MinGW64/x86_64-w64-mingw32/lib" -static-libgcc
 INCS     = -I"D:/Dev-Cpp/MinGW64/include" -I"D:/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include" -I"D:/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include"
 CXXINCS  = -I"D:/Dev-Cpp/MinGW64/include" -I"D:/Dev-Cpp/MinGW64/x86_64-w64-mingw32/include" -I"D:/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include" -I"D:/Dev-Cpp/MinGW64/lib/gcc/x86_64-w64-mingw32/4.9.2/include/c++"
@@ -29,3 +29,6 @@ DATA_CACHE_CPP/cls/datacache.o: DATA_CACHE_CPP/cls/datacache.cpp
 
 main.o: main.cpp
 	$(CPP) -c main.cpp -o main.o $(CXXFLAGS)
+
+../../CPPTest/无锁编程.o: ../../CPPTest/无锁编程.cpp
+	$(CPP) -c ../../CPPTest/无锁编程.cpp -o ../../CPPTest/无锁编程.o $(CXXFLAGS)
