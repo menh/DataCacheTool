@@ -1,6 +1,8 @@
 /*#if !defined __data_cache_h__
 #define __data_cache_h__
 */ 
+
+//订阅发布,寄生关系 
 #include <vector>
 #include <string>
 #include <map>
@@ -139,22 +141,17 @@ class CDataCache
   		{ 
       		m_lstIndexEvent.push_back(p_pclIndexEvent);
   		}
-  		
-  		void RegisterNotify(CIndexEvent<CDataItem> * p_pclIndexEvent)
-  		{ 
-      		m_lstIndexEvent.push_back(p_pclIndexEvent);
-  		}
   		  
 		void UnRegisterNotify(CIndexEvent<CDataItem> * p_pclIndexEvent)
   		{
       		m_lstIndexEvent.remove(p_pclIndexEvent);
     	} 
-  }
 protected:
 	void Free()
 	{ 
 		m_clItems.clear();
 		m_iItemNum = 0;
+		m_lstIndexEvent.clear(); 
 	}
 private:
 	vector<CDataItem> m_clItems;
@@ -278,6 +275,13 @@ class CDataCacheUniqueIndex
     		return iRetCode;
   		}
   		
+  		const CDataItem& operator[] (const CDataIndex& p_refclDataIndex)
+  		{
+  			string strIndexStr = SearchKey(p_refclDataIndex);
+  			map<string,int>:: iterator it = m_clUniqueIndexes.find(strIndexStr);
+  			int iPos = it->second;
+  			return m_refclDataCache[iPos];
+		}
   		
   		//根据索引获取数据 
   		int GetDataItem(CDataItem &p_refclDataItem, const CDataIndex &p_refclDataIndex)
